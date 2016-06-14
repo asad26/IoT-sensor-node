@@ -1,0 +1,15 @@
+[Unit]
+Description=Etcd for Kubernetes
+After=docker-bootstrap.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/k8s.conf
+ExecStartPre=-/usr/bin/docker -H unix:///var/run/docker-bootstrap.sock kill k8s-etcd
+ExecStartPre=-/usr/bin/docker -H unix:///var/run/docker-bootstrap.sock rm k8s-etcd
+ExecStartPre=-/usr/bin/mkdir -p /var/lib/kubernetes/etcd
+ExecStart=/usr/bin/docker -H unix:///var/run/docker-bootstrap.sock run -d --net=host --name=k8s-etcd -v /var/lib/kubernetes/etcd:/var/etcd/data kubernetesonarm/etcd:latest etcd -name etcd1 -advertise-client-urls http://${K8S_MASTER1_IP}:4001,http://${K8S_MASTER1_IP}:2379 -listen-client-urls http://0.0.0.0:4001,http://0.0.0.0:2379 -initial-advertise-peer-urls http://${K8S_MASTER1_IP}:2380 -listen-peer-urls http://0.0.0.0:2380 -initial-cluster-token etcd-cluster-1 -initial-cluster etcd1=http://${K8S_MASTER1_IP}:2380,etcd2=http://${K8S_MASTER2_IP}:2380,etcd3=http://${K8S_MASTER3_IP}:2380 -initial-cluster-state new -data-dir /var/etcd/data
+ExecStartPost=/bin/sh -c "while [ $(curl -fs http://localhost:4001/v2/machines 2>&1 1>/dev/null; echo $?) != 0 ]; do sleep 1; done; docker -H unix:///var/run/docker-bootstrap.sock run --rm --net=host kubernetesonarm/etcd:latest etcdctl set /coreos.com/network/config '{ \"Network\": \"10.0.0.0/16\" }'"
+#ExecStop=/usr/bin/docker -H unix:///var/run/docker-bootstrap.sock stop k8s-etcd
+
+[Install]
+WantedBy=multi-user.target
